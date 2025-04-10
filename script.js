@@ -26,21 +26,34 @@ let birdVelocity = 0;
 const gravity = -0.005;
 const flapStrength = 0.08;
 let gameStarted = false;
-let gameOver = false; // Added game over state
-let score = 0; // Added score
+let gameOver = false;
+let score = 0;
+let level = 1; // Track game level
+let baseSpeed = 0.05; // Base speed for pipes
+let currentPipeGap = 2.5; // Current gap size that will decrease with levels
 
 // UI Elements
 const instructionsElement = document.getElementById('instructions');
 const scoreElement = document.getElementById('score');
 const gameOverElement = document.getElementById('game-over');
 
+// Create level indicator
+const levelElement = document.createElement('div');
+levelElement.id = 'level';
+levelElement.style.position = 'absolute';
+levelElement.style.top = '40px';
+levelElement.style.left = '10px';
+levelElement.style.fontSize = '24px';
+levelElement.style.color = 'white';
+levelElement.innerText = 'Level: 1';
+document.body.appendChild(levelElement);
+
 // Pipe Constants
 const pipeWidth = 0.5;
-const pipeHeight = 5; // Base height, will be adjusted per pipe
-const pipeGap = 2.5; // Increased from 1.5 to 2.5 for a larger gap between pipes
-const pipeSpeed = 0.05;
-const pipeSpawnDistance = 10; // How far off-screen pipes spawn
-const pipeSpacing = 4; // Horizontal distance between pipe pairs
+const pipeHeight = 5;
+const minPipeGap = 1.5; // Minimum gap size
+const pipeSpawnDistance = 10;
+const pipeSpacing = 4;
 
 // Pipe Geometry and Material (reusable)
 const pipeGeometry = new THREE.BoxGeometry( pipeWidth, pipeHeight, pipeWidth );
@@ -55,30 +68,44 @@ camera.position.z = 5;
 // --- Functions ---
 
 function createPipePair(xPosition) {
-    const totalHeight = 8; // Approximate vertical world space view height
-    const gapCenterY = THREE.MathUtils.randFloat(-1.5, 1.5); // Randomize vertical position of the gap
+    const totalHeight = 8;
+    const gapCenterY = THREE.MathUtils.randFloat(-1.5, 1.5);
 
     // Top Pipe
     const topPipe = new THREE.Mesh( pipeGeometry, pipeMaterial );
-    // Calculate height needed based on gap position and total height
-    const topPipeHeight = (totalHeight / 2) + gapCenterY - (pipeGap / 2);
-    topPipe.scale.y = topPipeHeight / pipeHeight; // Scale based on calculated height (using original pipeHeight)
-    topPipe.position.set(xPosition, (totalHeight / 2) - (topPipeHeight / 2) , 0); // Position from top edge
+    const topPipeHeight = (totalHeight / 2) + gapCenterY - (currentPipeGap / 2);
+    topPipe.scale.y = topPipeHeight / pipeHeight;
+    topPipe.position.set(xPosition, (totalHeight / 2) - (topPipeHeight / 2) , 0);
     scene.add(topPipe);
 
     // Bottom Pipe
     const bottomPipe = new THREE.Mesh( pipeGeometry, pipeMaterial );
-    const bottomPipeHeight = totalHeight - topPipeHeight - pipeGap;
-    bottomPipe.scale.y = bottomPipeHeight / pipeHeight; // Scale based on calculated height
-    bottomPipe.position.set(xPosition, -(totalHeight / 2) + (bottomPipeHeight / 2) , 0); // Position from bottom edge
+    const bottomPipeHeight = totalHeight - topPipeHeight - currentPipeGap;
+    bottomPipe.scale.y = bottomPipeHeight / pipeHeight;
+    bottomPipe.position.set(xPosition, -(totalHeight / 2) + (bottomPipeHeight / 2) , 0);
     scene.add(bottomPipe);
-
 
     const pipePair = { top: topPipe, bottom: bottomPipe, scored: false };
     pipes.push(pipePair);
     return pipePair;
 }
 
+function updateDifficulty() {
+    // Update level every 10 pipes
+    const newLevel = Math.floor(score / 10) + 1;
+    if (newLevel !== level) {
+        level = newLevel;
+        levelElement.innerText = `Level: ${level}`;
+        
+        // Increase speed every level (every 10 pipes)
+        baseSpeed = 0.05 + (level - 1) * 0.01;
+        
+        // Decrease gap every 2 levels (every 20 pipes), but don't go below minimum
+        if (level % 2 === 0) {
+            currentPipeGap = Math.max(minPipeGap, 2.5 - (Math.floor(level / 2) * 0.1));
+        }
+    }
+}
 
 function resetPipes() {
     pipes.forEach(pair => {
@@ -104,17 +131,20 @@ function checkCollision(pipePair) {
     return birdBox.intersectsBox(topPipeBox) || birdBox.intersectsBox(bottomPipeBox);
 }
 
-
 function restartGame() {
-    bird.position.set(0, 0, 0); // Reset bird position
+    bird.position.set(0, 0, 0);
     birdVelocity = 0;
     score = 0;
+    level = 1;
+    baseSpeed = 0.05;
+    currentPipeGap = 2.5;
     scoreElement.innerText = `Score: ${score}`;
+    levelElement.innerText = `Level: ${level}`;
     gameOver = false;
     gameStarted = false;
     gameOverElement.style.display = 'none';
     instructionsElement.style.display = 'block';
-    resetPipes(); // Reset pipes to initial state
+    resetPipes();
 }
 
 // Animation loop
@@ -150,10 +180,10 @@ function animate() {
 
     for (let i = pipes.length - 1; i >= 0; i--) {
         const pair = pipes[i];
-        pair.top.position.x -= pipeSpeed;
-        pair.bottom.position.x -= pipeSpeed;
+        pair.top.position.x -= baseSpeed;
+        pair.bottom.position.x -= baseSpeed;
 
-        lastPipeX = Math.max(lastPipeX, pair.top.position.x); // Update rightmost position
+        lastPipeX = Math.max(lastPipeX, pair.top.position.x);
 
         // Check for collision
         if (checkCollision(pair)) {
@@ -161,11 +191,11 @@ function animate() {
         }
 
         // Check for scoring
-        if (!pair.scored && pair.top.position.x < bird.position.x - pipeWidth / 2) { // Check when bird fully passes pipe's front edge
+        if (!pair.scored && pair.top.position.x < bird.position.x - pipeWidth / 2) {
             score++;
             scoreElement.innerText = `Score: ${score}`;
             pair.scored = true;
-            // passedPipe = true; // Not strictly needed for spawning logic below
+            updateDifficulty(); // Update difficulty when score changes
         }
 
         // Remove pipes that are off-screen to the left
