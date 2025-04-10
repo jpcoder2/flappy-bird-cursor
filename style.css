@@ -1,0 +1,38 @@
+body {
+    margin: 0;
+    overflow: hidden; /* Hide scrollbars */
+    background-color: #87CEEB; /* Sky blue background */
+    font-family: sans-serif;
+    color: white;
+    text-align: center;
+}
+
+canvas {
+    display: block;
+}
+
+#score {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+}
+
+#instructions {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 30px;
+    text-shadow: 2px 2px 4px #000000;
+}
+
+#game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 40px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px #000000;
+} 
